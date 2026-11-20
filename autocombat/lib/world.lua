@@ -26,6 +26,14 @@ local function owned(sp)
   return owner ~= nil and mq.TLO.Spawn('pc =' .. owner)() ~= nil
 end
 
+-- What a cure takes off: a buff with poison, disease or curse counters (Spawn.Poisoned, .Diseased, .Cursed). A client
+-- older than these members reads them as NULL, the same as none.
+local function cure_states(t, sp)
+  t.poisoned = sp.Poisoned() ~= nil
+  t.diseased = sp.Diseased() ~= nil
+  t.cursed = sp.Cursed() ~= nil
+end
+
 -- A spawn (an MQ spawn value, already known to exist) as a table.
 local function spawn_table(sp)
   local populated = sp.BuffsPopulated() == true
@@ -53,6 +61,7 @@ local function spawn_table(sp)
     t.slowed = sp.Slowed() ~= nil
     t.snared = sp.Snared() ~= nil
     t.rooted = sp.Rooted() ~= nil
+    cure_states(t, sp)
     t.has_buff = function(name) return sp.Buff(name)() ~= nil end
     t.my_buff = function(name) return sp.MyBuff(name)() ~= nil end
   end
@@ -94,6 +103,7 @@ local function me_table(me, haters)
     los = true,
     buffs_known = true,
   }
+  cure_states(t, me)
   t.has_buff = function(name) return me.Buff(name)() ~= nil or me.Song(name)() ~= nil end
   t.my_buff = t.has_buff
   t.combat_state = t.in_combat

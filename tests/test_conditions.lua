@@ -68,3 +68,17 @@ case("conditions: mobs counted within a radius of me or the target", function()
   eq(conditions.describe({ who = "me", what = "near_haters", op = ">=", value = 3, radius = 30 }),
     "Mobs on me within 30 of me >= 3", "described, me")
 end)
+
+case("conditions: poisoned, diseased and cursed", function()
+  local t = fake.spawn({ id = 5, buffs = {}, poisoned = true, diseased = false, cursed = false })
+  local w = fake.world({ target = t, me = { diseased = true, poisoned = false, cursed = false } })
+  check(conditions.holds({ who = "me", what = "diseased", op = "is" }, w), "me diseased")
+  check(conditions.holds({ who = "me", what = "poisoned", op = "is not" }, w), "me not poisoned")
+  check(conditions.holds({ who = "target", what = "poisoned", op = "is" }, w), "target poisoned")
+  check(conditions.holds({ who = "target", what = "cursed", op = "is not" }, w), "target not cursed")
+  -- The target's buffs not sent: neither is nor is not holds.
+  local blind = fake.world({ target = fake.spawn({ id = 6 }) })
+  check(not conditions.holds({ who = "target", what = "poisoned", op = "is" }, blind), "unknown is")
+  check(not conditions.holds({ who = "target", what = "poisoned", op = "is not" }, blind), "unknown is not")
+  eq(conditions.describe({ who = "me", what = "cursed", op = "is" }), "Me is cursed", "described")
+end)
