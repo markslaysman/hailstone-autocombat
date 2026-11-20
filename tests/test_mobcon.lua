@@ -9,7 +9,7 @@ end
 
 case("mobcon: RoF2 OP_Consider request and all nine faction replies", function()
   local factions = { "Ally", "Warmly", "Kindly", "Amiably", "Indifferent",
-    "Apprehensive", "Dubious", "Threateningly", "Scowling" }
+    "Scowling", "Threateningly", "Dubious", "Apprehensive" }
   local c = mobcon.new()
   mobcon.set_zone(c, "ecommons")
   for n, faction in ipairs(factions) do
@@ -37,14 +37,14 @@ case("mobcon: only own response is hidden; bad, manual, and late replies pass th
   local c = mobcon.new()
   mobcon.set_zone(c, "qeynos")
   mobcon.request(c, 7, "a rat", 1000, 21)
-  check(not mobcon.record_packet(c, 0x1234, reply(21, 7, 9), 1050), "other opcode")
+  check(not mobcon.record_packet(c, 0x1234, reply(21, 7, 6), 1050), "other opcode")
   check(not mobcon.record_packet(c, mobcon.OPCODE, reply(21, 8, 9), 1050), "other target")
   check(not mobcon.record_packet(c, mobcon.OPCODE, reply(22, 7, 9), 1050), "other player")
   check(not mobcon.record_packet(c, mobcon.OPCODE, "bad", 1050), "short packet")
   eq(mobcon.lookup(c, 7, 1050), nil, "not cached yet")
-  check(mobcon.record_packet(c, mobcon.OPCODE, reply(21, 7, 9), 1070), "own response suppressed")
+  check(mobcon.record_packet(c, mobcon.OPCODE, reply(21, 7, 6), 1070), "own response suppressed")
   eq(mobcon.lookup(c, 7, 1080, "a_rat"), "Scowling", "reply cached")
-  check(not mobcon.record_packet(c, mobcon.OPCODE, reply(21, 7, 9), 1100), "manual repeat passes through")
+  check(not mobcon.record_packet(c, mobcon.OPCODE, reply(21, 7, 6), 1100), "manual repeat passes through")
   mobcon.request(c, 9, "a bat", 2000, 21)
   mobcon.cancel(c)
   check(mobcon.record_packet(c, mobcon.OPCODE, reply(21, 9, 1), 2600), "cancelled late response hidden")
@@ -68,11 +68,11 @@ case("mobcon: cache is scoped, expires, checks name, and stays bounded", functio
   eq(mobcon.lookup(c, 8, 1041, "a rat"), nil, "same name, other id")
   eq(mobcon.lookup(c, 7, 1042, "an orc"), nil, "recycled id, different name")
   mobcon.request(c, 7, "a rat", 2000, 21)
-  mobcon.record_packet(c, mobcon.OPCODE, reply(21, 7, 9), 2050)
+  mobcon.record_packet(c, mobcon.OPCODE, reply(21, 7, 6), 2050)
   eq(mobcon.lookup(c, 7, 2050 + mobcon.CACHE_MS, "a rat"), nil, "expires in 10 minutes")
   for id = 1, mobcon.MAX_ENTRIES + 2 do
     mobcon.request(c, id, "mob" .. id, 9000 + id * 100, 21)
-    mobcon.record_packet(c, mobcon.OPCODE, reply(21, id, 7), 9050 + id * 100)
+    mobcon.record_packet(c, mobcon.OPCODE, reply(21, id, 8), 9050 + id * 100)
   end
   local count = 0
   for _ in pairs(c.entries) do count = count + 1 end
@@ -175,10 +175,10 @@ case("mobcon: zero-player-ID reply from EQEmu is captured and not printed", func
   local c = mobcon.new()
   mobcon.set_zone(c, "ecommons")
   mobcon.request(c, 42, "a fire beetle", 2000, 100)
-  check(mobcon.record_packet(c, mobcon.OPCODE, reply(0, 42, 9), 2050),
+  check(mobcon.record_packet(c, mobcon.OPCODE, reply(0, 42, 6), 2050),
     "reply with zero player ID suppressed")
   eq(mobcon.lookup(c, 42, 2100, "a fire beetle"), "Scowling", "reply caches standing")
-  check(not mobcon.record_packet(c, mobcon.OPCODE, reply(0, 42, 9), 2150),
+  check(not mobcon.record_packet(c, mobcon.OPCODE, reply(0, 42, 6), 2150),
     "subsequent manual reply still visible")
 end)
 
@@ -205,4 +205,56 @@ case("mobcon: already navigating to innkeeper is stopped on next tick", function
   engine.tick(e, w, s, io)
   check(io.has('/nav stop'), "inappropriate navigation cancelled")
   eq(e.hunt, nil, "unwanted hunt cancelled")
+end)
+
+local function special_message(message, recipient, speak_mode)
+  -- Hailstone src/net/zone_packets.cpp decode_special_message.
+  return string.pack("<I1I1I1I4I4", speak_mode or 0, 0, 0, 15, recipient or 0)
+    .. "\0" .. string.pack("<I4I4I4", 0, 0, 0) .. message .. "\0"
+end
+
+case("mobcon: Triune immunity notices hidden only around an automatic consider", function()
+  local c = mobcon.new()
+  mobcon.set_zone(c, "umbral")
+  local gaze = "Something about this creature's gaze tells you it cannot be swayed by enchantments!"
+  local mez = "This creature's will is unbreakable - mesmerizing magic would have no effect!"
+  local slow = "This being moves with supernatural grace that defies any attempt to hinder its speed!"
+  local other = "You have been stunned!"
+  local packet = function(msg, recipient) return special_message(msg, recipient) end
+  check(not mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(gaze), 1000), "manual consider visible")
+  check(not mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(slow), 1000), "manual speed immunity notice visible")
+  mobcon.request(c, 18, "a_gantru_moktor001", 2000, 41)
+  check(mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(gaze), 2050), "gaze notice hidden")
+  check(mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(mez, 41), 2060), "mez notice hidden")
+  check(mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(slow), 2065), "speed immunity notice hidden")
+  check(mobcon.record_packet(c, mobcon.OPCODE, reply(0, 18, 6), 2070), "faction reply hidden")
+  eq(mobcon.lookup(c, 18, 2080, "a_gantru_moktor001"), "Scowling", "tier 6 correctly classified")
+  check(mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(mez), 2100), "notice arriving after con hidden")
+  check(not mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(other), 2100), "combat text visible")
+  check(mobcon.record_notice(c, 0x2b2d, "speaker\0" .. gaze .. "\0", 2100), "channel packet carrying known notice hidden")
+  check(mobcon.record_notice(c, 0x1234, "other\0" .. gaze .. "\0", 2100), "alternate packet opcode hidden")
+  check(mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(gaze, 999), 2100), "server broadcast target does not bypass notice filter")
+  check(mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(gaze, 0xffffffff), 2100), "all-ones recipient does not bypass filter")
+  check(not mobcon.record_notice(c, 0x2b2d, "someone quotes " .. gaze .. " and says more\0", 2100), "quoted chat is preserved")
+  check(not mobcon.record_notice(c, 0x1234, "a similar message\0", 2100), "unrelated packets are preserved")
+  check(not mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, "broken", 2100), "malformed message visible")
+  check(mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(gaze), 5100), "delayed notice in six-second window hidden")
+  check(not mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(gaze), 8101), "expired notice visible")
+  check(not mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, packet(slow), 8150), "late speed immunity notice visible")
+end)
+
+case("mobcon: notification window reset on zone and failed send", function()
+  local c = mobcon.new()
+  local gaze = "Something about this creature's gaze tells you it cannot be swayed by enchantments!"
+  local data = special_message(gaze)
+  mobcon.set_zone(c, "umbral")
+  mobcon.request(c, 18, "a mob", 1000, 41)
+  mobcon.cancel(c, true) -- failed send: no possible reply to hide
+  check(not mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, data, 1050), "failed send doesn't hide")
+  mobcon.request(c, 18, "a mob", 2000, 41)
+  mobcon.set_zone(c, "poknowledge")
+  check(not mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, data, 2050), "zone change doesn't hide")
+  mobcon.request(c, 22, "an orc", 3000, 41)
+  mobcon.cancel(c) -- request was sent, then hunter paused
+  check(mobcon.record_notice(c, mobcon.SPECIAL_MESSAGE_OPCODE, data, 3050), "late notice from sent request hidden")
 end)

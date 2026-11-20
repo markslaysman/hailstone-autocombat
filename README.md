@@ -30,7 +30,14 @@ When any standing is disabled, Hunter silently requests a faction standing **onl
 moving to or pulling it**, without changing your target or adding a chat line. A bounded 128-entry cache stores
 standings by NPC ID and name for up to 10 minutes, clearing on zone and character changes. Unanswered requests
 are temporarily skipped rather than treating an unknown faction as allowed. The client must grant the script
-`packets` permission to make these silent requests.
+`packets` permission to make these silent requests. The reply's faction values 6–9 are
+Scowling, Threateningly, Dubious and Apprehensive, as the server sends them (earlier versions read them the
+other way round).
+Three additional Triune con-immunity notices (charm, mez and slow immunity) are suppressed only during a
+six-second window following an Autocombat-issued request. Their exact raw text is checked across incoming zone
+packet types, since Triune can use different chat packets and target IDs. Other chat and manual `/consider`
+outside this window are unaffected; identical immunity notices from a manual `/consider` issued during the window
+cannot be distinguished reliably and may also be suppressed.
 
 At the top of **Targeting**, the **Mob whitelist (current zone)** shows the current zone's saved NPC names.
 Choose an NPC and click **Add Current Target**, or enter a name and click **Add Name**. Each entry has a

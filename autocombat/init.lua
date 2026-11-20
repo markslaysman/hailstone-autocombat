@@ -424,11 +424,19 @@ mq.bind('/autocombat', function(a, b)
   end
 end)
 
--- Intercept only our own OP_Consider replies before the client converts
--- them into chat. Manual /consider replies pass through unchanged.
-can_read_consider = pcall(hs.on_packet, 'zone', 'in', mobcon.OPCODE, function(opcode, data)
+-- Intercept our own OP_Consider replies and Triune's separate immunity
+-- notices before the client converts them into chat. The latter may arrive
+-- through several incoming chat opcodes, not just OP_SpecialMesg.
+local consider_hook = pcall(hs.on_packet, 'zone', 'in', mobcon.OPCODE, function(opcode, data)
   return mobcon.record_packet(con_cache, opcode, data, mq.gettime())
 end)
+local notice_hook = pcall(hs.on_packet, 'zone', 'in', 0, function(opcode, data)
+  if not con_cache.notice then return false end -- quick path for ordinary traffic
+  return mobcon.record_notice(con_cache, opcode, data, mq.gettime())
+end)
+-- Do not initiate automatic considerations if we cannot suppress BOTH replies
+-- and their associated notices; this avoids noisy, partly configured installs.
+can_read_consider = consider_hook and notice_hook
 
 -- ---------------------------------------------------------------- the loop
 

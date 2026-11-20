@@ -4,26 +4,41 @@
 local M = {}
 
 M.OPCODE = 0x742b -- RoF2 OP_Consider (Hailstone src/net/opcodes_rof2.inc)
+M.SPECIAL_MESSAGE_OPCODE = 0x0083 -- RoF2 OP_SpecialMesg (one possible notice carrier)
 M.CACHE_MS = 10 * 60 * 1000
 M.MAX_ENTRIES = 128
 M.REPLY_MS = 2000
+M.NOTICE_MS = 6000 -- allow for Triune notices delayed after the consideration reply
 
 M.TIERS = { "Scowling", "Threateningly", "Dubious", "Apprehensive", "Indifferent",
   "Amiably", "Kindly", "Warmly", "Ally" }
 
--- OP_Consider's faction field is 1=ally, 9=scowling (eqstr 12212..12220).
+-- OP_Consider's faction field on the wire follows eqstr 12212..12220
+-- (1=ally .. 6=scowls, 7=threateningly, 8=dubiously, 9=apprehensively).
+-- EQEmu's FACTION_VALUE enum puts 6..9 the other way round and swaps them
+-- just before sending (Client::Handle_OP_Consider), so every EQEmu server
+-- sends this order. Never infer it from the UI tier list above.
 local WIRE_TIERS = { "Ally", "Warmly", "Kindly", "Amiably", "Indifferent",
-  "Apprehensive", "Dubious", "Threateningly", "Scowling" }
+  "Scowling", "Threateningly", "Dubious", "Apprehensive" }
+
+-- Triune sends these literal texts as separate chat/system packets as a
+-- side effect of /consider. Their wire opcode and target field may vary;
+-- do not require either when matching a known notice from our own request.
+local CON_NOTICES = {
+  ["Something about this creature's gaze tells you it cannot be swayed by enchantments!"] = true,
+  ["This creature's will is unbreakable - mesmerizing magic would have no effect!"] = true,
+  ["This being moves with supernatural grace that defies any attempt to hinder its speed!"] = true,
+}
 
 local function normal(name)
   return (name or ""):lower():gsub("_", " "):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
-function M.new() return { zone = nil, entries = {}, pending = nil, issued = {} } end
+function M.new() return { zone = nil, entries = {}, pending = nil, issued = {}, notice = nil } end
 
 function M.set_zone(c, zone)
   if zone ~= c.zone then
-    c.zone, c.entries, c.pending, c.issued = zone, {}, nil, {}
+    c.zone, c.entries, c.pending, c.issued, c.notice = zone, {}, nil, {}, nil
   end
 end
 
@@ -65,6 +80,7 @@ function M.request(c, id, name, now, player_id)
   if type(id) ~= "number" or id <= 0 or type(player_id) ~= "number" or player_id <= 0 then return nil end
   c.pending = { id = id, name = name, player_id = player_id, at = now }
   c.issued[id] = { player_id = player_id, at = now }
+  c.notice = { id = id, player_id = player_id, at = now }
   return string.pack("<I4I4I4I4I4", player_id, id, 0, 0, 0)
 end
 
@@ -96,10 +112,42 @@ function M.record_packet(c, opcode, data, now)
   return true
 end
 
+-- Packet-level notice suppression. The chat text may be carried by more than
+-- OP_SpecialMesg, and that packet's target_spawn_id is not necessarily the
+-- player or the considered mob (it may be a broadcast value). Match only a
+-- complete, NUL-terminated known text in the raw incoming payload. This is
+-- called from the opcode=0 packet hook; it never parses or rewrites other text.
+-- A manual /consider made during an automatic consideration window remains
+-- inherently indistinguishable from the resulting automatic notice.
+function M.record_notice(c, opcode, data, now)
+  if type(data) ~= "string" then return false end
+  local notice = c.notice
+  if not notice then return false end
+  local elapsed = now - notice.at
+  if elapsed < 0 or elapsed > M.NOTICE_MS then
+    if elapsed > M.NOTICE_MS then c.notice = nil end
+    return false
+  end
+  -- OP_Consider itself has a distinct binary layout, handled by record_packet.
+  if opcode == M.OPCODE then return false end
+  for text in pairs(CON_NOTICES) do
+    -- In OP_SpecialMesg this is the final field; in channel or other packets
+    -- the following byte is NUL. An arbitrary chat quote with extra words
+    -- after the phrase must not be mistaken for the server's system notice.
+    if data:find(text .. "\0", 1, true) or data:sub(-#text) == text then
+      return true
+    end
+  end
+  return false
+end
+
 function M.cancel(c, discard)
   -- Keep an in-flight reply marker briefly on normal cancellation. If sending
   -- the request itself failed, nothing was sent, so remove the marker too.
-  if discard and c.pending then c.issued[c.pending.id] = nil end
+  if discard and c.pending then
+    c.issued[c.pending.id] = nil
+    c.notice = nil
+  end
   c.pending = nil
 end
 
