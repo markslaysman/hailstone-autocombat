@@ -14,7 +14,7 @@ local function value(fields, exists)
   })
 end
 
-local function client(spawns, xtargets, target_id)
+local function client(spawns, xtargets, target_id, me)
   local state = { spawns = spawns, xtargets = xtargets or {}, target_id = target_id or 0, now = 100000 }
   local absent = value({}, false)
   local function spawn(s)
@@ -22,11 +22,13 @@ local function client(spawns, xtargets, target_id)
       Type = s.kind or "NPC", PctHPs = s.hp, Dead = s.dead == true, Distance = s.distance or 10,
       Distance3D = s.distance or 10, Level = 10, Class = value({ ID = s.class or 1 }), ConColor = "WHITE", X = s.x or 0, Y = s.y or 0, Z = s.z or 0,
       Surname = s.surname, BodyType = s.body or 1, Targetable = s.targetable ~= false,
-      MaxRangeTo = 14, LineOfSight = true, BuffsPopulated = false })
+      MaxRangeTo = 14, LineOfSight = true, BuffsPopulated = s.buffs == true, Poisoned = s.poisoned,
+      Diseased = s.diseased, Cursed = s.cursed })
   end
   local mq = { TLO = {}, gettime = function() return state.now end }
   mq.TLO.Me = value({ ID = 1, Name = "Tester", CleanName = "Tester", PctHPs = 100, PctMana = 100,
-    PctEndurance = 100, CurrentMana = 1000, Combat = true, CombatState = "COMBAT", Pet = absent })
+    PctEndurance = 100, CurrentMana = 1000, Combat = true, CombatState = "COMBAT", Pet = absent,
+    Poisoned = me and me.poisoned, Diseased = me and me.diseased, Cursed = me and me.cursed })
   mq.TLO.EverQuest = value({ GameState = "INGAME" })
   mq.TLO.Group = value({ Members = 0, MainAssist = absent })
   mq.TLO.Navigation = value({ Active = false, MeshLoaded = true, MeshComplete = true, TilesBuilt = 1, TilesTotal = 1 })
@@ -162,4 +164,18 @@ case("world and engine: hunter finishes a living zero-percent target before choo
     check(io.has('/attack off') and io.has('/stick off'), ending .. ": stops the completed fight")
     eq(e.hunt and e.hunt.id, 11, ending .. ": may choose the next mob now")
   end
+end)
+
+case("world: poisoned, diseased and cursed from the client's spawn members, unknown without the target's buffs", function()
+  local _, world = client({
+    { id = 10, buffs = true, diseased = "Plague" },
+    { id = 11, poisoned = "Venom" }, -- its buffs were not sent: the states stay unknown
+  }, {}, 10, { poisoned = "Spider Venom", cursed = "Curse of Rot" })
+  local w = world.read(settings.defaults())
+  eq(w.me.poisoned, true, "me poisoned")
+  eq(w.me.diseased, false, "me not diseased")
+  eq(w.me.cursed, true, "me cursed")
+  eq(w.target.diseased, true, "target diseased")
+  eq(w.target.poisoned, false, "target not poisoned")
+  eq(w.spawn(11).poisoned, nil, "unknown without its buffs")
 end)

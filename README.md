@@ -87,6 +87,11 @@ fires. A row has:
   each mob (useful for a damage-over-time spell or a debuff).
 - **Conditions:** for example "Me Health % < 50", "Target Health % > 20", "Me lacks Spirit of Wolf",
   "Target is named", "Mobs on me within 30 of the target >= 3". Every condition must hold.
+  - For a cure row: "Me is poisoned", "Me is diseased" and "Me is cursed" (and the same for the target) hold
+    while a buff with poison, disease or curse counters is on you or on it. They need a Hailstone client with
+    `Spawn.Poisoned`, `.Diseased` and `.Cursed`; an older one never sees them. Someone else's are known only while
+    they are your target and the server sends you your target's buffs, so the lowest group member and the assist
+    have none.
 
 **Skills that share a timer take turns.** Backstab, Bash, Slam, Kick, Round Kick, Flying Kick, Eagle Strike, Dragon
 Punch (Tail Rake), and Frenzy all run on one timer: using any of them makes them all wait (Tiger Claw has a timer of

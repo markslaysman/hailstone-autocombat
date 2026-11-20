@@ -8,6 +8,7 @@ function M.spawn(t)
     class_id = t.class_id or 1,
     x = t.x or 0, y = t.y or 0, z = t.z or 0, max_range = t.max_range or 14, los = t.los,
     mezzed = t.mezzed, slowed = t.slowed, snared = t.snared, rooted = t.rooted, players_near = t.players_near,
+    poisoned = t.poisoned, diseased = t.diseased, cursed = t.cursed,
     owned = t.owned, dead = t.dead == true, faction_con = t.faction_con,
   }
   if t.buffs then

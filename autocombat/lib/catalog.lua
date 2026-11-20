@@ -36,6 +36,9 @@ M.properties = {
     { id = "combat", label = "In combat", kind = "bool" },
     { id = "moving", label = "Moving", kind = "bool" },
     { id = "burning", label = "Burn mode on", kind = "bool" },
+    { id = "poisoned", label = "Poisoned", kind = "bool" },
+    { id = "diseased", label = "Diseased", kind = "bool" },
+    { id = "cursed", label = "Cursed", kind = "bool" },
   },
   target = {
     { id = "hp", label = "Health %", kind = "pct", default = 90 },
@@ -51,6 +54,9 @@ M.properties = {
     { id = "slowed", label = "Slowed", kind = "bool" },
     { id = "snared", label = "Snared", kind = "bool" },
     { id = "rooted", label = "Rooted", kind = "bool" },
+    { id = "poisoned", label = "Poisoned", kind = "bool" },
+    { id = "diseased", label = "Diseased", kind = "bool" },
+    { id = "cursed", label = "Cursed", kind = "bool" },
     { id = "los", label = "In line of sight", kind = "bool" },
   },
   pet = {
