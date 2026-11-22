@@ -28,6 +28,7 @@ local cat = nil                  -- the conditions' catalog
 local sel = { spells = nil, abilities = nil, items = nil } -- the selected row of each page
 local imported = {}               -- the last import's count, by page
 local whitelist_text = ""            -- the unsubmitted manual NPC name
+local profile_name = ""              -- a new profile name, typed in the settings window
 local describe                   -- a condition as words (below)
 
 local MODES = { { "manual", "Manual" }, { "hunter", "Hunter" }, { "assist", "Assist" } }
@@ -920,6 +921,29 @@ mobConPage = function(s)
     "arrives. Results are cached by spawn for this zone.")
 end
 
+local function profilesPage(s)
+  local info = P.profiles() or { active = 'default', names = { 'default' } }
+  section('Current profile', s, true)
+  note('Each profile keeps its own combat mode, rotations, targeting and Hunter options. ' ..
+    'Changing profiles pauses Auto Combat; press Start when ready.')
+  ui.Dummy(0, 8 * s)
+  field('Active profile', s)
+  local options = {}
+  for _, name in ipairs(info.names) do options[#options + 1] = { name, name } end
+  local chosen = combo('##acprofile', options, info.active, 220 * s)
+  if chosen then P.profile('load', chosen) end
+  section('Create a profile', s)
+  note('Save a copy of the current settings under a new name. This does not switch away from the current profile. ' ..
+    'Names use 1-32 letters, numbers, dashes or underscores.')
+  ui.SetNextItemWidth(230 * s)
+  local entered, changed = ui.InputTextWithHint('##acnewprofile', 'e.g. hunter_solo', profile_name, 32)
+  if changed then profile_name = entered end
+  ui.SameLine()
+  if ui.Button('Save as new profile') and P.profile('save', profile_name) then profile_name = '' end
+  ui.Dummy(0, 6 * s)
+  note('Your existing character config remains the Default profile. Settings auto-save for the active profile.')
+end
+
 local function hunterPage(s)
   local h, t = S.hunter, S.targeting
   section("How it hunts", s, true)
@@ -1348,6 +1372,7 @@ local PAGES = {
   { "spells", "Spells", "Ordered rows: the first one that is ready and whose conditions all hold fires." },
   { "abilities", "Abilities", "Skills, combat abilities and alternate abilities, in the same way as spells." },
   { "items", "Items", "Items you carry with a click effect (worn or in your bags), in the same way as spells." },
+  { "profiles", "Profiles", "Save and select named per-character combat configurations." },
   { "targeting", "Targeting", "Level con, faction con, ignores, and per-zone priority whitelist." },
   { "hunter", "Hunter", "Finding mobs on its own: roaming the zone, or pulling to a camp." },
   { "assist", "Assist", "Fighting what your assist fights." },
@@ -1412,6 +1437,7 @@ local function settingsBody(x, y, w, h, s)
   if page == "spells" then rowsPage("spells", s, ch)
   elseif page == "abilities" then rowsPage("abilities", s, ch)
   elseif page == "items" then rowsPage("items", s, ch)
+  elseif page == "profiles" then profilesPage(s)
   elseif page == "targeting" then targetingPage(s)
   elseif page == "hunter" then hunterPage(s)
   elseif page == "assist" then assistPage(s)
