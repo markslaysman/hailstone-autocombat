@@ -1,3 +1,4 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- Auto Combat: the world as one tick sees it, read from the client (mq.TLO and the hailstone module) into plain
 -- tables for the pure parts (lib/conditions.lua, rules.lua, targeting.lua, engine.lua). Lookups that are not always
 -- needed (a spawn by id, a spell, an item, readiness, the hunt list, path lengths) are functions, read when asked and

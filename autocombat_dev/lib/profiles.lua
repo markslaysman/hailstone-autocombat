@@ -1,3 +1,4 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- Named settings profiles. Pure helpers: storage is handled by init.lua through mq.pickle.
 -- The default profile continues to use the original per-character settings file.
 local M = {}

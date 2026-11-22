@@ -1,3 +1,4 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- Auto Combat: what a row's conditions can ask, for the evaluator (lib/conditions.lua) and the window's pickers.
 -- A condition is { who = <subject>, what = <property>, op = <operator>, value = <number | text> }; every condition of
 -- a row must hold. A count also has `radius`: the mobs counted are within that distance of the subject (an AE's

@@ -1,3 +1,4 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- Auto Combat: which mob to fight. Pure: spawns are plain tables from the snapshot (lib/world.lua):
 -- { id, name, hp, npc, dead, distance, level, named, con (level colour), faction_con ("Scowling" ...), mezzed, x, y, z,
 --   players_near }.

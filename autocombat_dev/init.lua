@@ -1,3 +1,4 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- Auto Combat for Hailstone: fights for you in one of three modes.
 --   Manual  full:    run into a pack; it targets the mobs on you (the extended target list's auto haters), keeps in
 --                    melee range, attacks, sends the pet, and fires your Spells and Abilities rows.
@@ -10,17 +11,17 @@
 -- The Spells and Abilities pages are ordered rows: the first row whose conditions hold and that is ready fires.
 --
 -- Two windows: a compact one (the mode, Start / Pause, what it is doing; it opens when the script starts) and the
--- settings (its gear button, or /autocombat settings).
+-- settings (its gear button, or /autocombatdev settings).
 --
--- Burn mode (the compact window's Burn, /autocombat burn): the rows marked "only during burn" fire only while it is
+-- Burn mode (the compact window's Burn, /autocombatdev burn): the rows marked "only during burn" fire only while it is
 -- on; it ends by itself once the extended target list is clear after a fight, or when turned off.
 --
 -- The extended target window (the Modern pack's, through its lib/xtarget.lua) gets Force (fight this one first, until
 -- it dies) and Ignore (leave it alone while anything else is on the list) on each mob.
 --
--- /autocombat [show | settings | on | off | toggle | burn [on|off] | force | ignore |
+-- /autocombatdev [show | settings | on | off | toggle | burn [on|off] | force | ignore |
 --             mode manual|hunter|assist | style full|partial | camp | status]
--- Settings are kept per server and character in scripts/config/autocombat/. A server may turn modes off in its
+-- Settings are kept per server and character in scripts/config/autocombatdev/. A server may turn modes off in its
 -- hailstone.cfg: [autocombat] manual = off, hunter = off, assist = off.
 local mq = require('mq')
 local hs = require('hailstone')
@@ -33,7 +34,7 @@ local rules = require('lib.rules')
 local mobcon = require('lib.mobcon')
 local whitelist = require('lib.whitelist')
 
-local NAME = "autocombat"
+local NAME = "autocombat_dev"
 local TICK_MS = 100
 
 local S = settings_mod.defaults()   -- the settings in use
@@ -51,7 +52,7 @@ local spell_cache = nil
 local con_cache = mobcon.new() -- bounded, per-zone faction results from OP_Consider packets
 local can_read_consider = false
 
-local function say(text) hs.chat('[Auto Combat] ' .. text, 15) end
+local function say(text) hs.chat('[Auto Combat DEV] ' .. text, 15) end
 
 -- ---------------------------------------------------------------- settings
 
@@ -61,7 +62,7 @@ local function settings_path()
   local server = mq.TLO.EverQuest.Server() or ""
   local char = mq.TLO.Me.Name() or ""
   if server == "" or char == "" then return nil end
-  return "autocombat/" .. clean(server) .. "_" .. clean(char) .. ".lua"
+  return "autocombat_dev/" .. clean(server) .. "_" .. clean(char) .. ".lua"
 end
 
 local function read_table(path)
@@ -473,11 +474,11 @@ hs.ui_function("command", function(what, arg)
   end
   return true
 end)
-hs.menu("Auto Combat", "/autocombat show")
+hs.menu("Auto Combat DEV", "/autocombatdev show")
 
 -- ---------------------------------------------------------------- the command
 
-mq.bind('/autocombat', function(a, b, c)
+mq.bind('/autocombatdev', function(a, b, c)
   a = (a or ""):lower()
   if a == "" or a == "show" then open = not open
   elseif a == "settings" or a == "setup" then settings_open = not settings_open
@@ -493,13 +494,13 @@ mq.bind('/autocombat', function(a, b, c)
     local action = (b or ''):lower()
     if action == 'list' then profile_action('list')
     elseif action == 'save' or action == 'load' then profile_action(action, c)
-    else say('usage: /autocombat profile list|save <name>|load <name>') end
+    else say('usage: /autocombatdev profile list|save <name>|load <name>') end
   elseif a == "mode" or a == "style" then
     local list = a == "mode" and settings_mod.MODES or settings_mod.STYLES
     local v = (b or ""):lower()
     local ok
     for _, m in ipairs(list) do ok = ok or m == v end
-    if not ok then return say("usage: /autocombat " .. a .. " " .. table.concat(list, "|")) end
+    if not ok then return say("usage: /autocombatdev " .. a .. " " .. table.concat(list, "|")) end
     load_settings()
     S = settings_mod.set(S, a, v)
     changed()
@@ -509,7 +510,7 @@ mq.bind('/autocombat', function(a, b, c)
     say((E.running and E.status or "paused") .. " (" .. S.mode .. (S.mode == "manual" and (", " .. S.style) or "")
       .. (E.burn and ", burning" or "") .. ")")
   else
-    say("/autocombat [show | settings | on | off | toggle | burn [on|off] | force | ignore"
+    say("/autocombatdev [show | settings | on | off | toggle | burn [on|off] | force | ignore"
       .. " | mode manual|hunter|assist | style full|partial | camp | profile | status]")
   end
 end)

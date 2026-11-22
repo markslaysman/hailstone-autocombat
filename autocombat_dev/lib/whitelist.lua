@@ -1,3 +1,4 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- Explicit Hunter targets, stored by zone short name in the character's settings.
 -- Matches are case-insensitive full NPC names. EQ's three-digit spawn suffix
 -- (e.g. a_fire_beetle005) is ignored so typed names work for respawns too.

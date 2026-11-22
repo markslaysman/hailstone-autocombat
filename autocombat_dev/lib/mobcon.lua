@@ -1,3 +1,4 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- NPC faction consideration via Hailstone's OP_Consider packet, not chat text.
 -- A server reply includes the target spawn ID and the faction tier, so it can
 -- be attributed without changing the player's current target or parsing chat.

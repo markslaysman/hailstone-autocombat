@@ -1,7 +1,7 @@
 -- Auto Combat, tested with plain Lua 5.5 or 5.4 (no client): lua5.5 tests/run.lua
 -- Pure logic uses tests/fake.lua; world adapter tests supply mocked mq and hailstone modules.
 local root = arg[0]:match("^(.*)/tests/run%.lua$") or "."
-package.path = root .. "/autocombat/?.lua;" .. root .. "/tests/?.lua;" .. package.path
+package.path = root .. "/autocombat_dev/?.lua;" .. root .. "/tests/?.lua;" .. package.path
 
 local passed, failed = 0, 0
 local current = ""

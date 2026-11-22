@@ -1,10 +1,11 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- Auto Combat's windows for the Modern pack. The script (../../init.lua) keeps the settings and runs the fight; these
--- show its state and edit the settings through the script's functions (eq.Plugin("autocombat"): state, settings,
+-- show its state and edit the settings through the script's functions (eq.Plugin("autocombat_dev"): state, settings,
 -- set, set_rows, set_ignore, whitelist, command, catalog, row_for_spell, clickies, row_for_item).
---   The compact window (opens with the script; /autocombat, or the EQ menu's Plugins > Auto Combat): the mode (Manual,
+--   The compact window (opens with the script; /autocombatdev, or the EQ menu's Plugins > Auto Combat): the mode (Manual,
 --           Hunter, Assist; one the server turned off is greyed) and Manual's style (Full, Partial), Start / Pause,
 --           what it is doing and the last thing it did. Its gear opens the settings.
---   The settings window (/autocombat settings): a page list down the left.
+--   The settings window (/autocombatdev settings): a page list down the left.
 --     Spells, Abilities: the rotation, ordered rows as icon tiles (drag to reorder, a switch on each, a right-click
 --           menu); the first row that is ready and whose conditions hold fires. Each tile says why it is not firing
 --           while Auto Combat runs. The selected row at the right: its spell or ability as the books show it (icon,
@@ -18,7 +19,7 @@ local hud = dofile("lib/hud.lua")
 local K = dofile("lib/dialogs_kit.lua")
 local T = hud.T
 local C = T.color
-local SETTINGS_KEY = "AutoCombatSettingsWnd" -- the settings window
+local SETTINGS_KEY = "AutoCombatDevSettingsWnd" -- the settings window
 
 local P                          -- the script's functions (nil while it is not running)
 local st = {}                    -- its state, read each frame
@@ -746,7 +747,7 @@ local function details(list, rows, x, y, w, h, s)
   field("Burn", s, col)
   local bu = check("Only during burn##acbu" .. list, r.burn)
   if bu ~= nil then r.burn = bu push(list, rows) end
-  tip("Fires only while burn mode is on (the compact window's Burn, /autocombat burn): your big discs, AAs and nukes")
+  tip("Fires only while burn mode is on (the compact window's Burn, /autocombatdev burn): your big discs, AAs and nukes")
   section("Conditions", s)
   if #r.conditions == 0 then note("None: it fires whenever it is ready.") end
   conditionEditor(list, r, rows, s)
@@ -1276,8 +1277,8 @@ local function burnButton(x0, y0, x1, y1, s, on)
   T.Text(gx + fw + 5 * s, cy - th / 2, word, ic, T.font.normal, nil, 1, on and C.barShadow or nil)
   if hovered then
     ui.SetTooltip(on and "Burn mode is on: the burn rows fire. It ends by itself once the extended target list is clear;"
-      .. " click to end it now (/autocombat burn off)."
-      or "Burn mode: rows marked \"Only during burn\" fire until this fight is over (/autocombat burn)")
+      .. " click to end it now (/autocombatdev burn off)."
+      or "Burn mode: rows marked \"Only during burn\" fire until this fight is over (/autocombatdev burn)")
   end
   return hit
 end
@@ -1348,7 +1349,7 @@ local function compact(x, y, w, h, s)
   end
   T.Text(gx + iconW + 6 * s, cy - th / 2, word, ic, T.font.normal, nil, 1, C.barShadow)
   if hit then P.command(running and "pause" or "start") end
-  if hovered then ui.SetTooltip(running and "Pause (/autocombat off)" or "Start (/autocombat on)") end
+  if hovered then ui.SetTooltip(running and "Pause (/autocombatdev off)" or "Start (/autocombatdev on)") end
   local kx0 = bx0 + bw + 8 * s
   if burnButton(kx0, by0, kx0 + 76 * s, by0 + bh, s, st.burn) then P.command("burn") end
 
@@ -1447,8 +1448,8 @@ local function settingsBody(x, y, w, h, s)
   ui.EndChild()
 end
 
-ui.window("Auto Combat", function()
-  P = eq.Plugin("autocombat")
+ui.window("Auto Combat DEV", function()
+  P = eq.Plugin("autocombat_dev")
   if not P or not eq.InGame() then return end
   st = P.state() or {}
   if not st.open and not st.settings_open then return end
@@ -1458,13 +1459,13 @@ ui.window("Auto Combat", function()
   end
   cat = cat or P.catalog()
   if not S or not cat then return end
-  hud.Window(nil, "Auto Combat", {
+  hud.Window(nil, "Auto Combat DEV", {
     shown = function() return st.open end,
     size = compactSize,
     place = function(W, H, w, h) return W - w - 40, H * 0.30 end,
     onClose = function() P.command("close") end,
   }, compact)
-  hud.Dialog(SETTINGS_KEY, "Auto Combat Settings", {
+  hud.Dialog(SETTINGS_KEY, "Auto Combat DEV Settings", {
     shown = st.settings_open == true,
     keepTitle = true,
     size = function() return 920, 600 end,
@@ -1477,7 +1478,7 @@ end)
 -- The extended target window, with Force and Ignore on each mob (the pack's own when this client has no
 -- lib/xtarget.lua, or the script is not running).
 ui.window("Extended Target", function()
-  local p = eq.Plugin("autocombat")
+  local p = eq.Plugin("autocombat_dev")
   if not xtarget or not p then return ui.base_window() end
   P = p
   st = p.state() or {}

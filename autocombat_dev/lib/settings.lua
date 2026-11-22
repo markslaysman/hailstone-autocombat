@@ -1,3 +1,4 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- Auto Combat: the settings, their defaults, and the repair of a loaded file (a missing or wrong-typed value takes
 -- its default, numbers are clamped, rows and conditions that make no sense are dropped). Pure.
 local catalog = require('lib.catalog')

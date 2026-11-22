@@ -1,3 +1,4 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- Auto Combat: a row's conditions against the world snapshot (lib/world.lua). Pure: everything it reads is in the
 -- snapshot, so it runs the same in the client and in the tests.
 --

@@ -1,3 +1,4 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- Auto Combat: the modes. One tick reads a snapshot of the world (lib/world.lua) and the settings, decides, and acts
 -- through `io` (init.lua in the client, a recorder in the tests). It never reads the game itself.
 --

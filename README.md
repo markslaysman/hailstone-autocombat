@@ -1,3 +1,9 @@
+# Test build: AutoCombat DEV
+
+**This is the isolated test branch.** Install only `autocombat_dev/` alongside your original; see [DEV_TESTING.md](DEV_TESTING.md). The upstream feature branch keeps the original name. Do not follow the normal AutoCombat installation instructions below to install the test build.
+
+---
+
 # Auto Combat for Hailstone
 
 A combat helper for the [Hailstone](https://github.com/projecthailstone) EverQuest client. It runs as a Lua

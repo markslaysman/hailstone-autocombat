@@ -1,3 +1,4 @@
+-- Standalone development copy of AutoCombat; original addon remains separate.
 -- Auto Combat: which row of the Spells, Abilities or Items page fires next. Pure: the snapshot (lib/world.lua) answers
 -- what needs the game (world.ready(row), world.spell(name)), and `memory` keeps when each row last fired.
 --
