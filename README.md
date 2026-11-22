@@ -18,6 +18,33 @@ button, the Burn button, and what Auto Combat is doing, with the last thing it d
 bottom-right corner to scale it. The gear opens the settings window, a page list down the left: Spells, Abilities,
 Items, Targeting (Mob Con and whitelist), Hunter, Assist, Rest, General and Log.
 
+## Named profiles (per character)
+
+The **Profiles** page in Settings lets you save the current configuration under a new name and load any saved
+profile. This includes mode, rotation rows, targeting, Hunter camp, rest and other settings. Profiles are independent:
+editing one does not change the others. The existing `scripts/config/autocombat/<server>_<character>.lua`
+continues to be the **default** profile; no migration or replacement is required.
+
+Commands:
+
+```text
+/autocombat profile list
+/autocombat profile save hunter_solo
+/autocombat profile load hunter_solo
+/autocombat profile load default
+```
+
+Profile names allow 1-32 letters, digits, dashes and underscores (case-insensitive). `save` snapshots the current
+settings into a *new* named profile and does not select it. Already-existing names cannot be overwritten by `save`.
+`load` saves pending changes and **pauses Auto Combat before switching**; you must press Start to resume. It also
+clears the previous fight and Burn state. Profile changes are persisted, so the last selected profile loads next
+session. To avoid losing progress, a failed settings save cancels the switch.
+
+Named settings are stored beside the original configuration as `<server>_<character>__profile_<name>.lua`, with a
+`<server>_<character>__profiles.lua` selection/index file. Back up these files as you would your existing settings.
+If the selected profile is missing or corrupt on startup, the original Default settings are loaded as a fallback.
+Profiles do not automatically change spell gems: spells still need to be memorized to cast.
+
 ## Targeting: Mob Con and per-zone whitelist
 
 The **Mob Con** section of the **Targeting** settings page filters Hunter's automatic targets by the nine NPC faction standings returned by
