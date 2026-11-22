@@ -26,6 +26,7 @@ local mq = require('mq')
 local hs = require('hailstone')
 local catalog = require('lib.catalog')
 local settings_mod = require('lib.settings')
+local profiles = require('lib.profiles')
 local engine = require('lib.engine')
 local world_mod = require('lib.world')
 local rules = require('lib.rules')
@@ -38,7 +39,9 @@ local TICK_MS = 100
 local S = settings_mod.defaults()   -- the settings in use
 local rev = 1                       -- bumped on every change, so the window knows to read them again
 local dirty_at = nil                -- when an unsaved change was made
-local loaded_for = nil              -- the settings file loaded ("" before a character is in the world)
+local loaded_for = nil              -- legacy per-character path, used as the profile identity
+local active_settings_path = nil    -- path for the selected settings profile
+local profile_manifest = profiles.repair(nil)
 local open = true                   -- the compact window shows (from the start, so /lua run brings it up)
 local settings_open = false         -- the settings window shows
 local E = engine.new()
@@ -61,16 +64,30 @@ local function settings_path()
   return "autocombat/" .. clean(server) .. "_" .. clean(char) .. ".lua"
 end
 
+local function read_table(path)
+  local chunk = loadfile(path)
+  if not chunk then return nil end
+  local ok, data = pcall(chunk)
+  if ok and type(data) == 'table' then return data end
+  return nil
+end
+
 local function load_settings()
   local path = settings_path()
   if not path or path == loaded_for then return end
   loaded_for = path
   mobcon.set_zone(con_cache, nil) -- the same zone's spawn IDs may belong to another character
   E.consider = nil
-  local chunk = loadfile(path)
-  local ok, t = false, nil
-  if chunk then ok, t = pcall(chunk) end
-  S = settings_mod.repair(ok and t or nil)
+  profile_manifest = profiles.repair(read_table(profiles.manifest_path(path)))
+  active_settings_path = profiles.settings_path(path, profile_manifest.active)
+  local data = read_table(active_settings_path)
+  if not data and profile_manifest.active ~= 'default' then
+    -- Missing or corrupt selected profile: recover the original settings, never overwrite them.
+    profile_manifest.active = 'default'
+    active_settings_path = path
+    data = read_table(path)
+  end
+  S = settings_mod.repair(data)
   rev = rev + 1
   spell_cache = nil
 end
@@ -80,11 +97,16 @@ local function changed()
   dirty_at = mq.gettime()
 end
 
+local function flush_settings()
+  if not dirty_at then return true end
+  if not active_settings_path then return false end
+  local ok = pcall(mq.pickle, active_settings_path, S)
+  if ok then dirty_at = nil end
+  return ok
+end
+
 local function save_if_due()
-  if dirty_at and loaded_for and mq.gettime() - dirty_at > 1500 then
-    mq.pickle(loaded_for, S)
-    dirty_at = nil
-  end
+  if dirty_at and mq.gettime() - dirty_at > 1500 then flush_settings() end
 end
 
 -- ---------------------------------------------------------------- the server's rules
@@ -134,6 +156,62 @@ local function pause(why)
   if E.running then engine.pause(E, act, why) end
   mobcon.cancel(con_cache)
   if not why then say("paused.") end
+end
+
+-- Create a snapshot or switch profile. Switching always pauses and resets the combat engine.
+-- The original character file is always the 'default' profile (no conversion needed).
+local function profile_action(action, value)
+  load_settings()
+  if not loaded_for then say('log in to manage profiles.') return false end
+  if action == 'list' then
+    say('profiles: ' .. table.concat(profile_manifest.names, ', ') .. ' (active: ' .. profile_manifest.active .. ').')
+    return true
+  end
+  local n = profiles.name(value)
+  if not n then say('profile names must be 1-32 letters, numbers, dashes or underscores.') return false end
+  if action == 'save' then
+    local updated = profiles.add(profile_manifest, n)
+    if not updated then say('profile already exists: ' .. n .. '.') return false end
+    if not flush_settings() or not pcall(mq.pickle, active_settings_path, S) then
+      say('could not save current settings; profile not created.') return false
+    end
+    -- Also materialize the default file for first-time users before creating a named profile.
+    local path = profiles.settings_path(loaded_for, n)
+    local ok = pcall(mq.pickle, path, S)
+    if not ok then say('could not write profile: ' .. n .. '.') return false end
+    if not pcall(mq.pickle, profiles.manifest_path(loaded_for), updated) then
+      say('could not update the profile list; current profile unchanged.')
+      return false
+    end
+    profile_manifest = updated
+    rev = rev + 1
+    say('saved a copy as ' .. n .. '; active profile is still ' .. profile_manifest.active .. '.')
+    return true
+  elseif action == 'load' then
+    if not profiles.has(profile_manifest, n) then say('unknown profile: ' .. n .. '.') return false end
+    if n == profile_manifest.active then say('already using ' .. n .. '.') return true end
+    local path = profiles.settings_path(loaded_for, n)
+    local data = read_table(path)
+    if not data then say('profile file missing or invalid: ' .. n .. '.') return false end
+    if not flush_settings() then say('could not save changes; switch cancelled.') return false end
+    -- Stop before changing the rotation or hunting mode. Never auto-resume.
+    if E.running then pause('switching profile') end
+    local updated = profiles.activate(profile_manifest, n)
+    if not pcall(mq.pickle, profiles.manifest_path(loaded_for), updated) then
+      say('could not record selected profile; switch cancelled.')
+      return false
+    end
+    profile_manifest = updated
+    active_settings_path = path
+    S = settings_mod.repair(data)
+    E = engine.new() -- forget old combat targets, cooldown memory and Burn state
+    spell_cache = nil
+    row_status = { spells = {}, abilities = {}, items = {} }
+    rev = rev + 1
+    say('profile ' .. n .. ' loaded (paused).')
+    return true
+  end
+  return false
 end
 
 -- ---------------------------------------------------------------- the extended target list and the marks
@@ -278,6 +356,7 @@ hs.ui_function("state", function()
     end)(),
     fight_id = E.running and E.fight_id or 0,
     mode = S.mode,
+    profile = profile_manifest.active,
     style = S.style,
     status = E.running and E.status or "Paused",
     last = E.last,
@@ -296,6 +375,11 @@ hs.ui_function("state", function()
 end)
 hs.ui_function("settings", function() load_settings() return S end)
 hs.ui_function("catalog", function() return catalog end)
+hs.ui_function("profiles", function()
+  load_settings()
+  return { active = profile_manifest.active, names = profile_manifest.names }
+end)
+hs.ui_function("profile", function(action, name) return profile_action(action, name) end)
 hs.ui_function("spells", function(refresh) return spell_names(refresh) end)
 hs.ui_function("row_for_spell", function(name)
   if type(name) ~= "string" or name == "" then return nil end
@@ -382,6 +466,7 @@ hs.ui_function("command", function(what, arg)
   elseif what == "target" then
     if (tonumber(arg) or 0) ~= 0 then mq.cmd('/target id ' .. math.floor(tonumber(arg))) end
   elseif what == "camp" then set_camp()
+  elseif what == "profile" and type(arg) == "table" then return profile_action(arg.action, arg.name)
   elseif what == "clear_camp" then S.hunter.camp = nil changed()
   elseif what == "import_autoskill" then return import_autoskill()
   elseif what == "import_spellbar" then return import_spellbar()
@@ -392,7 +477,7 @@ hs.menu("Auto Combat", "/autocombat show")
 
 -- ---------------------------------------------------------------- the command
 
-mq.bind('/autocombat', function(a, b)
+mq.bind('/autocombat', function(a, b, c)
   a = (a or ""):lower()
   if a == "" or a == "show" then open = not open
   elseif a == "settings" or a == "setup" then settings_open = not settings_open
@@ -404,6 +489,11 @@ mq.bind('/autocombat', function(a, b)
     local v = (b or ""):lower()
     if v == "on" then burn(true) elseif v == "off" then burn(false) else burn() end
   elseif a == "camp" then set_camp()
+  elseif a == "profile" then
+    local action = (b or ''):lower()
+    if action == 'list' then profile_action('list')
+    elseif action == 'save' or action == 'load' then profile_action(action, c)
+    else say('usage: /autocombat profile list|save <name>|load <name>') end
   elseif a == "mode" or a == "style" then
     local list = a == "mode" and settings_mod.MODES or settings_mod.STYLES
     local v = (b or ""):lower()
@@ -420,7 +510,7 @@ mq.bind('/autocombat', function(a, b)
       .. (E.burn and ", burning" or "") .. ")")
   else
     say("/autocombat [show | settings | on | off | toggle | burn [on|off] | force | ignore"
-      .. " | mode manual|hunter|assist | style full|partial | camp | status]")
+      .. " | mode manual|hunter|assist | style full|partial | camp | profile | status]")
   end
 end)
 
