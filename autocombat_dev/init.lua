@@ -161,33 +161,76 @@ end
 
 -- Create a snapshot or switch profile. Switching always pauses and resets the combat engine.
 -- The original character file is always the 'default' profile (no conversion needed).
-local function profile_action(action, value)
+local function profile_action(action, value, source)
   load_settings()
   if not loaded_for then say('log in to manage profiles.') return false end
   if action == 'list' then
     say('profiles: ' .. table.concat(profile_manifest.names, ', ') .. ' (active: ' .. profile_manifest.active .. ').')
     return true
   end
+
+  -- Autosave remains enabled; this explicit Save button writes the active profile immediately.
+  if action == 'save_current' then
+    local ok = pcall(mq.pickle, active_settings_path, S)
+    if not ok then say('could not save ' .. profile_manifest.active .. '.') return false end
+    dirty_at = nil
+    say('profile ' .. profile_manifest.active .. ' saved.')
+    return true
+  end
+
   local n = profiles.name(value)
   if not n then say('profile names must be 1-32 letters, numbers, dashes or underscores.') return false end
-  if action == 'save' then
-    local updated = profiles.add(profile_manifest, n)
+
+  if action == 'save' or action == 'copy' or action == 'new' then
+    local select_new = action ~= 'save' -- legacy "save" keeps the current profile selected
+    local updated = profiles.create(profile_manifest, n, select_new)
     if not updated then say('profile already exists: ' .. n .. '.') return false end
-    if not flush_settings() or not pcall(mq.pickle, active_settings_path, S) then
-      say('could not save current settings; profile not created.') return false
+    local source_name = source or profile_manifest.active
+    if action == 'copy' then
+      source_name = profiles.name(source_name)
+      if not source_name or not profiles.has(profile_manifest, source_name) then
+        say('unknown source profile.') return false
+      end
     end
-    -- Also materialize the default file for first-time users before creating a named profile.
+    if not flush_settings() then say('could not save current changes; creation cancelled.') return false end
+    -- The active profile may not have a file yet. Materialize it before copying.
+    if not pcall(mq.pickle, active_settings_path, S) then
+      say('could not save current settings; creation cancelled.') return false
+    end
+    local data
+    if action == 'new' then
+      data = settings_mod.defaults()
+    elseif action == 'copy' and source_name ~= profile_manifest.active then
+      data = read_table(profiles.settings_path(loaded_for, source_name))
+      if not data then say('source profile file missing or invalid: ' .. source_name .. '.') return false end
+    else
+      data = S -- save/copy current active settings, including any recent edits
+    end
+    -- Write the new file first. A failed file write must not add it to the profile index.
     local path = profiles.settings_path(loaded_for, n)
-    local ok = pcall(mq.pickle, path, S)
-    if not ok then say('could not write profile: ' .. n .. '.') return false end
+    if not pcall(mq.pickle, path, data) then say('could not write profile: ' .. n .. '.') return false end
     if not pcall(mq.pickle, profiles.manifest_path(loaded_for), updated) then
       say('could not update the profile list; current profile unchanged.')
       return false
     end
+    if select_new then
+      if E.running then pause('switching profile') end
+      active_settings_path = path
+      S = settings_mod.repair(data)
+      E = engine.new()
+      spell_cache = nil
+      row_status = { spells = {}, abilities = {}, items = {} }
+      dirty_at = nil
+    end
     profile_manifest = updated
     rev = rev + 1
-    say('saved a copy as ' .. n .. '; active profile is still ' .. profile_manifest.active .. '.')
+    if select_new then
+      say('created profile ' .. n .. ' (paused). Source profile preserved.')
+    else
+      say('saved a copy as ' .. n .. '; active profile is still ' .. profile_manifest.active .. '.')
+    end
     return true
+
   elseif action == 'load' then
     if not profiles.has(profile_manifest, n) then say('unknown profile: ' .. n .. '.') return false end
     if n == profile_manifest.active then say('already using ' .. n .. '.') return true end
@@ -208,6 +251,7 @@ local function profile_action(action, value)
     E = engine.new() -- forget old combat targets, cooldown memory and Burn state
     spell_cache = nil
     row_status = { spells = {}, abilities = {}, items = {} }
+    dirty_at = nil
     rev = rev + 1
     say('profile ' .. n .. ' loaded (paused).')
     return true
@@ -380,7 +424,7 @@ hs.ui_function("profiles", function()
   load_settings()
   return { active = profile_manifest.active, names = profile_manifest.names }
 end)
-hs.ui_function("profile", function(action, name) return profile_action(action, name) end)
+hs.ui_function("profile", function(action, name, source) return profile_action(action, name, source) end)
 hs.ui_function("spells", function(refresh) return spell_names(refresh) end)
 hs.ui_function("row_for_spell", function(name)
   if type(name) ~= "string" or name == "" then return nil end
@@ -478,7 +522,7 @@ hs.menu("Auto Combat DEV", "/autocombatdev show")
 
 -- ---------------------------------------------------------------- the command
 
-mq.bind('/autocombatdev', function(a, b, c)
+mq.bind('/autocombatdev', function(a, b, c, d)
   a = (a or ""):lower()
   if a == "" or a == "show" then open = not open
   elseif a == "settings" or a == "setup" then settings_open = not settings_open
@@ -493,8 +537,10 @@ mq.bind('/autocombatdev', function(a, b, c)
   elseif a == "profile" then
     local action = (b or ''):lower()
     if action == 'list' then profile_action('list')
-    elseif action == 'save' or action == 'load' then profile_action(action, c)
-    else say('usage: /autocombatdev profile list|save <name>|load <name>') end
+    elseif action == 'savecurrent' then profile_action('save_current')
+    elseif action == 'save' or action == 'load' or action == 'copy' or action == 'new' then
+      profile_action(action, c, d)
+    else say('usage: /autocombatdev profile list|savecurrent|save <name>|load <name>|copy <new> [source]|new <name>') end
   elseif a == "mode" or a == "style" then
     local list = a == "mode" and settings_mod.MODES or settings_mod.STYLES
     local v = (b or ""):lower()
