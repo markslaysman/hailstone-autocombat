@@ -963,7 +963,10 @@ local function profilesPage(s)
   end
   local source = source_exists and profile_copy_source or info.active
   local chosen = combo('##acprofilecopyfrom', options, source, 230 * s)
-  if chosen then profile_copy_source = chosen source = chosen end
+  if chosen then
+    profile_copy_source = chosen
+    source = chosen
+  end
   ui.Dummy(0, 6 * s)
   if ui.Button('Copy existing as new##acprofilecopy') then
     if P.profile('copy', profile_name, source) then
