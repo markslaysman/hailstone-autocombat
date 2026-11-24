@@ -55,6 +55,14 @@ function M.add(manifest, value)
   return result
 end
 
+-- Create a new snapshot profile. The caller persists its settings and the
+-- manifest together; this helper does not mutate the existing manifest.
+function M.create(manifest, value, select_new)
+  local updated = M.add(manifest, value)
+  if updated and select_new then updated.active = name(value) end
+  return updated
+end
+
 function M.activate(manifest, value)
   local n = name(value)
   if not n or not M.has(manifest, n) then return nil end
