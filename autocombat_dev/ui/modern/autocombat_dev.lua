@@ -15,6 +15,11 @@
 --     Items: the same for the items carried with a click effect (worn or in a bag), picked from the ones the script
 --           finds (clickies); a tile shows the item's icon, the card its click spell, cast, recast and when it is ready.
 --     Targeting (including Mob Con and zone whitelist), Hunter, Assist, Rest, General; Log: last actions.
+-- The Modern UI pack exposes a shared 'modern' table. The original AutoCombat
+-- script may already own it; Hailstone forbids writing to another script's
+-- tables. Shadow the pack table with a DEV-owned one *before* loading hud,
+-- escape, and snap, all of which use 'modern' as mutable UI state.
+modern = { windows = {}, resetAll = false }
 local hud = dofile("lib/hud.lua")
 local K = dofile("lib/dialogs_kit.lua")
 local T = hud.T
