@@ -2,6 +2,9 @@
 
 **This is the isolated test branch.** Install only `autocombat_dev/` alongside your original; see [DEV_TESTING.md](DEV_TESTING.md). The upstream feature branch keeps the original name. Do not follow the normal AutoCombat installation instructions below to install the test build.
 
+
+**DEV UI update:** The selected Profile is now shown at the **top of the settings sidebar**, with its dropdown, management gear, and Save button. The gear page lets you copy any existing profile to a newly named one, or create a blank profile. Switching pauses the dev script. [Full testing steps](DEV_TESTING.md).
+
 ---
 
 # Auto Combat for Hailstone
