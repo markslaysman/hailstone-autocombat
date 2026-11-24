@@ -24,12 +24,26 @@ This branch is **for local testing only**. The upstream-ready feature remains in
 
 The dev copy's Lua files have distinct contents/hashes so they do not inherit permission ceilings assigned to identical files from a separately managed add-on. **This does not override server policy**: Hailstone still applies the server's permission rules.
 
+## Profile-first workflow (dev UI)
+
+Open `/autocombatdev settings`. At the **top of the left sidebar**, above Spells and Abilities, the **Profile** dropdown selects which complete configuration is being edited. The **gear** beside it opens **Profile settings**. A **Save** button under the selector is available on every settings page.
+
+- **Edit an existing profile:** choose it in the left dropdown, make changes on the usual settings pages, then click **Save**. Changes still auto-save after a short delay; Save forces an immediate write.
+- **Copy any existing profile:** open the gear, enter a new profile name, choose its source in **Copy from**, then click **Copy existing as new**. The original is not modified; the new copy becomes active.
+- **Create a blank profile:** enter a new name and click **Create blank**. Its settings start from AutoCombat defaults.
+- **Switch profiles:** choosing one from the dropdown persists the previous edits, pauses AutoCombat DEV, clears combat state, and keeps it paused until you press Start.
+
+Names are case-insensitive, 1–32 characters, using letters, digits, underscores or hyphens. Existing names cannot be overwritten by Copy/New. The original add-on and its settings remain untouched.
+
 ## Test commands
 
 ```text
 /lua run autocombat_dev
 /autocombatdev profile list
+/autocombatdev profile savecurrent
 /autocombatdev profile save hunter
+/autocombatdev profile copy hunter_aoe hunter
+/autocombatdev profile new clean_start
 /autocombatdev profile load hunter
 /autocombatdev profile load default
 /autocombatdev off
