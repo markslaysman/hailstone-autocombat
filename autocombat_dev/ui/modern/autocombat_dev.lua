@@ -34,7 +34,8 @@ local cat = nil                  -- the conditions' catalog
 local sel = { spells = nil, abilities = nil, items = nil } -- the selected row of each page
 local imported = {}               -- the last import's count, by page
 local whitelist_text = ""            -- the unsubmitted manual NPC name
-local profile_name = ""              -- a new profile name, typed in the settings window
+local profile_name = ""              -- the name for a new profile
+local profile_copy_source = nil       -- existing profile to duplicate (defaults to active)
 local describe                   -- a condition as words (below)
 
 local MODES = { { "manual", "Manual" }, { "hunter", "Hunter" }, { "assist", "Assist" } }
@@ -927,27 +928,61 @@ mobConPage = function(s)
     "arrives. Results are cached by spawn for this zone.")
 end
 
+-- Refresh all UI state after a profile switch or creation, so the very next
+-- settings page reflects the newly selected profile rather than stale rows.
+local function profileChanged()
+  S = P.settings()
+  st = P.state() or st
+  rev = st.rev or -1
+  sel = { spells = nil, abilities = nil, items = nil }
+  imported = {}
+  profile_copy_source = nil
+end
+
 local function profilesPage(s)
   local info = P.profiles() or { active = 'default', names = { 'default' } }
-  section('Current profile', s, true)
-  note('Each profile keeps its own combat mode, rotations, targeting and Hunter options. ' ..
-    'Changing profiles pauses Auto Combat; press Start when ready.')
+  section('Selected profile', s, true)
+  note('Editing any Spells, Abilities, Items, Targeting or Hunter setting updates only the selected profile.')
   ui.Dummy(0, 8 * s)
-  field('Active profile', s)
-  local options = {}
-  for _, name in ipairs(info.names) do options[#options + 1] = { name, name } end
-  local chosen = combo('##acprofile', options, info.active, 220 * s)
-  if chosen then P.profile('load', chosen) end
+  ui.Text('Active: ' .. info.active)
+  ui.SameLine()
+  if ui.Button('Save Changes##acprofilesavefull') then P.profile('save_current') end
+  note('Changes also auto-save after a short delay. Save Changes writes the current profile immediately.')
+
   section('Create a profile', s)
-  note('Save a copy of the current settings under a new name. This does not switch away from the current profile. ' ..
-    'Names use 1-32 letters, numbers, dashes or underscores.')
+  note('New blank starts with default settings. Copy existing duplicates the chosen profile and leaves the source intact.')
+  field('New profile name', s)
   ui.SetNextItemWidth(230 * s)
   local entered, changed = ui.InputTextWithHint('##acnewprofile', 'e.g. hunter_solo', profile_name, 32)
   if changed then profile_name = entered end
-  ui.SameLine()
-  if ui.Button('Save as new profile') and P.profile('save', profile_name) then profile_name = '' end
+  field('Copy from', s)
+  local options, source_exists = {}, false
+  for _, name in ipairs(info.names) do
+    options[#options + 1] = { name, name }
+    if name == profile_copy_source then source_exists = true end
+  end
+  local source = source_exists and profile_copy_source or info.active
+  local chosen = combo('##acprofilecopyfrom', options, source, 230 * s)
+  if chosen then profile_copy_source = chosen source = chosen end
   ui.Dummy(0, 6 * s)
-  note('Your existing character config remains the Default profile. Settings auto-save for the active profile.')
+  if ui.Button('Copy existing as new##acprofilecopy') then
+    if P.profile('copy', profile_name, source) then
+      profile_name = ''
+      profileChanged()
+      return
+    end
+  end
+  ui.SameLine()
+  if ui.Button('Create blank##acprofilenew') then
+    if P.profile('new', profile_name) then
+      profile_name = ''
+      profileChanged()
+      return
+    end
+  end
+  ui.Dummy(0, 8 * s)
+  note('Creating either profile selects the new one and pauses combat. Use the profile dropdown in the sidebar ' ..
+    'to switch between profiles. No spell gems are automatically changed.')
 end
 
 local function hunterPage(s)
@@ -1375,10 +1410,10 @@ end
 
 -- The settings window: the pages down the left, the chosen one on the right.
 local PAGES = {
+  { "profiles", "Profile settings", "Create, copy and save named combat profiles." },
   { "spells", "Spells", "Ordered rows: the first one that is ready and whose conditions all hold fires." },
   { "abilities", "Abilities", "Skills, combat abilities and alternate abilities, in the same way as spells." },
   { "items", "Items", "Items you carry with a click effect (worn or in your bags), in the same way as spells." },
-  { "profiles", "Profiles", "Save and select named per-character combat configurations." },
   { "targeting", "Targeting", "Level con, faction con, ignores, and per-zone priority whitelist." },
   { "hunter", "Hunter", "Finding mobs on its own: roaming the zone, or pulling to a camp." },
   { "assist", "Assist", "Fighting what your assist fights." },
@@ -1390,11 +1425,32 @@ local page = "spells"
 
 local function sidebar(x, y, w, h, s)
   ui.DrawRectFilled(x, y, x + w, y + h, C.inset[1], C.inset[2], C.inset[3], C.inset[4] * 0.6, 8 * s)
+
+  -- Profiles select the whole configuration, so this selector stays above
+  -- the pages it controls. The gear opens the management page; Save is always available.
+  local info = P.profiles() or { active = 'default', names = { 'default' } }
+  T.Text(x + 12 * s, y + 10 * s, 'PROFILE', C.muted, T.font.small)
+  local options = {}
+  for _, name in ipairs(info.names) do options[#options + 1] = { name, name } end
+  ui.SetCursorScreenPos(x + 10 * s, y + 31 * s)
+  local selected = combo('##acactiveprofileside', options, info.active, w - 51 * s)
+  if selected and P.profile('load', selected) then profileChanged() end
+  if gearButton('##acprofilegear', x + w - 31 * s, y + 31 * s, 21 * s, s, page == 'profiles') then
+    page = 'profiles'
+  end
+  if ui.IsItemHovered() then ui.SetTooltip('Create, copy and manage profiles') end
+  ui.SetCursorScreenPos(x + 10 * s, y + 65 * s)
+  if ui.Button('Save##acprofileside') then P.profile('save_current') end
+  if ui.IsItemHovered() then ui.SetTooltip('Save changes to the selected profile now') end
+  ui.DrawLine(x + 10 * s, y + 100 * s, x + w - 10 * s, y + 100 * s, C.ink[1], C.ink[2], C.ink[3], 0.15, 1)
+
   local rowH = 30 * s
-  local yy = y + 8 * s
-  for _, p in ipairs(PAGES) do
+  local yy = y + 110 * s
+  -- The profile settings page is reached from the gear, not a duplicate sidebar item.
+  for i = 2, #PAGES do
+    local p = PAGES[i]
     local x0, x1 = x + 6 * s, x + w - 6 * s
-    local hit = T.Hit("##acpage" .. p[1], x0, yy, x1, yy + rowH)
+    local hit = T.Hit('##acpage' .. p[1], x0, yy, x1, yy + rowH)
     local hovered = ui.IsItemHovered()
     local on = page == p[1]
     local a = C.accent
@@ -1404,28 +1460,28 @@ local function sidebar(x, y, w, h, s)
     elseif hovered then
       ui.DrawRectFilled(x0, yy, x1, yy + rowH, C.ink[1], C.ink[2], C.ink[3], 0.06, 6 * s)
     end
-    local _, th = T.TextSize("Ag", T.font.normal)
+    local _, th = T.TextSize('Ag', T.font.normal)
     local text = p[2]
-    if p[1] == "spells" or p[1] == "abilities" or p[1] == "items" then
+    if p[1] == 'spells' or p[1] == 'abilities' or p[1] == 'items' then
       local n = #(S[p[1]] or {})
       if n > 0 then
-        T.Text(x1 - 8 * s, yy + (rowH - th) / 2, tostring(n), C.faint, T.font.small, "right")
+        T.Text(x1 - 8 * s, yy + (rowH - th) / 2, tostring(n), C.faint, T.font.small, 'right')
       end
     end
     T.Text(x0 + 12 * s, yy + (rowH - th) / 2, text, on and C.text or C.muted, T.font.normal)
     if hit then page = p[1] end
     yy = yy + rowH + 2 * s
   end
-  -- at the foot: the mode and whether it runs
-  local mode = label(MODES, S.mode) .. (S.mode == "manual" and (" / " .. label(STYLES, S.style)) or "")
+  -- Status at the foot of the navigation.
+  local mode = label(MODES, S.mode) .. (S.mode == 'manual' and (' / ' .. label(STYLES, S.style)) or '')
   local c = st.running and C.good or C.faint
   ui.DrawCircleFilled(x + 16 * s, y + h - 18 * s, 3.5 * s, c[1], c[2], c[3], 1)
-  T.Text(x + 26 * s, y + h - 25 * s, T.Fit(mode .. (st.running and " - on" or " - paused"), w - 34 * s, T.font.small),
+  T.Text(x + 26 * s, y + h - 25 * s, T.Fit(mode .. (st.running and ' - on' or ' - paused'), w - 34 * s, T.font.small),
     C.muted, T.font.small)
 end
 
 local function settingsBody(x, y, w, h, s)
-  local sideW = 150 * s
+  local sideW = 172 * s
   sidebar(x, y, sideW, h, s)
   local cx = x + sideW + 14 * s
   local cw = w - sideW - 14 * s
